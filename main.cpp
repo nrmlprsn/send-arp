@@ -39,18 +39,19 @@ int main(int argc, char* argv[]){
 
 	eth_arp_hdr packet;
 	
-	if(!get_mac(dev, &packet.eth.smac)){
-		printf("Wrong interface\n");
-		return EXIT_FAILURE;
-	}
-	memset(packet.eth.dmac, 0xFF, MAC_LEN); // broadcast
-	packet.eth.type = htons(0x0806); // ARP
+	packet.eth.smac = Mac::get_mac(dev);
+	packet.eth.dmac = Mac("FF:FF:FF:FF:FF:FF"); // broadcast
+	packet.eth.type = htons(eth_hdr::ARP);
 	
-	packet.arp.htype = htons(1);
-	packet.arp.ptype = htons(0x0800);
-	packet.arp.hlen = MAC_LEN;
-	packet.arp.plen = 4;
-	packet.arp.op = 1;
+	packet.arp.htype = htons(arp_hdr::ETHER);
+	packet.arp.ptype = htons(eth_hdr::IP4);
+	packet.arp.hlen = Mac::Size;
+	packet.arp.plen = Ip::Size;
+	packet.arp.op = arp_hdr::Request;
+	packet.arp.smac = packet.eth.smac;
+	packet.arp.sip = Ip::get_ip(dev);
+	packet.arp.tmac = Mac("00:00:00:00:00:00");
+	packet.arp.tip = Ip(argv[i]); // Sender ip
 
 	if(!send_packet(pcap, &packet)) return -1;
 
@@ -65,16 +66,21 @@ int main(int argc, char* argv[]){
 		}
 
 		eth_hdr* eth_ans = (eth_hdr*)packet_ans;
-		if(ntohs(eth_ans->type) != 0x0806) continue;
+		if(ntohs(eth_ans->type) != eth_hdr::ARP) continue;
 		
 		arp_hdr* arp_ans = (arp_ans*)(packet_ans + sizeof(eth_hdr));
-		if(ntohs(arp_ans->op != 2)) continue;
+		if(ntohs(arp_ans->op != arp_hdr::Reply)) continue;
 
 		if(arp_ans->spa == my_ip){
-			memcpy(packet.arp.tmac, arp_ans->smac, MAC_LEN);
+			packet.eth.dmac = arp_ans->smac;
+			packet.arp.tmac = arp_ans->smac;
 			break;
 		}
 	}
-
+	packet.arp.sip = Ip(argv[i*2+1]); // Target ip
 	
+	pcap_close(pcap);
 
+	return 0;
+}	
+	
