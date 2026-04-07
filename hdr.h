@@ -1,10 +1,12 @@
 #pragma once
 
+#include <cstring>
 #include <stdint.h>
 #include <arpa/inet.h>
+#include <string>
 
-typedef struct{
-	static const int Size = 6;
+struct Mac{
+	static constexpr int Size = 6;
 	uint8_t mac[Size];
 	
 	// constructor
@@ -20,9 +22,9 @@ typedef struct{
 	bool operator != (const Mac& r) const{return memcmp(mac, r.mac, Size) != 0;}
 
 	static Mac get_mac(const std::string& iface);
-}Mac;
+};
 
-typedef struct{
+struct Ip{
 	static const int Size = 4;
 	uint32_t ip;
 	
@@ -35,12 +37,13 @@ typedef struct{
 	bool operator == (const Ip& r) const{return ip == r.ip;}
 
 	static Ip get_ip(const std::string& iface);
-}Ip;
+};
 
+#pragma pack(push, 1)
 typedef struct{
 	Mac dmac;
 	Mac smac;
-	uint16_5 type;
+	uint16_t type;
 
 	// type
         enum: uint16_t {
@@ -89,3 +92,4 @@ typedef struct{
                 InvReply = 9 // resp identifying peer
         };
 }arp_hdr;
+#pragma pack(pop)

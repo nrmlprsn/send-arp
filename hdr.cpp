@@ -1,5 +1,6 @@
 #include "hdr.h"
 #include <sys/ioctl.h>
+#include <net/if.h>
 #include <unistd.h>
 #include <cstring>
 #include <arpa/inet.h>

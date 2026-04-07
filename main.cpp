@@ -1,13 +1,13 @@
 #include <cstdio>
 #include <pcap.h>
-#include <netinet.h>
 #include "hdr.h"
-#include "getmac.h"
 
+#pragma pack(push, 1)
 typedef struct{
 	eth_hdr eth;
 	arp_hdr arp;
 }eth_arp_hdr;
+#pragma pack(pop)
 
 void usage(){
 	printf("syntax: send-arp <interface> <sender ip> <target ip> [<sender ip 2> <target ip 2> ...]\n");

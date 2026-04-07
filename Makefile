@@ -1,7 +1,7 @@
 all: send-arp
 
 send-arp: main.o hdr.o
-	g++ -o send-arp main.o hdr.o
+	g++ -o send-arp main.o hdr.o -lpcap
 
 main.o: hdr.h main.cpp
 	g++ -c -o main.o main.cpp
