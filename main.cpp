@@ -17,14 +17,14 @@ void usage(){
 bool send_packet(pcap_t* pcap, eth_arp_hdr* packet){
 	int res = pcap_sendpacket(pcap, reinterpret_cast<const u_char*>(packet), sizeof(eth_arp_hdr));
 	if(res != 0){
-		printf(stderr, "pcap_sendpacket return %d error=%s\n", res, pcap_geterr(pcap));
+		fprintf(stderr, "pcap_sendpacket return %d error=%s\n", res, pcap_geterr(pcap));
 		return false;
 	}
 	return true;
 }
 
 int main(int argc, char* argv[]){
-	if(argc&1 || argc<4){
+	if(argc<4 || argc%2 != 0){
 		usage();
 		return EXIT_FAILURE;
 	}
@@ -37,22 +37,27 @@ int main(int argc, char* argv[]){
 		return EXIT_FAILURE;
 	}
 
-	for(int i=0;2*i<argc;i++){
-		eth_arp_hdr packet;
+	Mac myMac = Mac::get_mac(dev);
+	Ip myIp = Ip::get_ip(dev);
 	
-		packet.eth.smac = Mac::get_mac(dev);
+	eth_arp_hdr packet;
+	
+	packet.eth.smac = myMac;
+	packet.eth.type = htons(eth_hdr::ARP);
+	
+	packet.arp.htype = htons(arp_hdr::ETHER);
+	packet.arp.ptype = htons(eth_hdr::IP4);
+	packet.arp.hlen = Mac::Size;
+	packet.arp.plen = Ip::Size;
+	packet.arp.smac = myMac;
+
+	for(int i=0;i<(argc-2)/2;i++){
 		packet.eth.dmac = Mac("FF:FF:FF:FF:FF:FF"); // broadcast
-		packet.eth.type = htons(eth_hdr::ARP);
 		
-		packet.arp.htype = htons(arp_hdr::ETHER);
-		packet.arp.ptype = htons(eth_hdr::IP4);
-		packet.arp.hlen = Mac::Size;
-		packet.arp.plen = Ip::Size;
-		packet.arp.op = arp_hdr::Request;
-		packet.arp.smac = packet.eth.smac;
-		packet.arp.sip = Ip::get_ip(dev);
+		packet.arp.op = htons(arp_hdr::Request);
+		packet.arp.sip = myIp;
 		packet.arp.tmac = Mac("00:00:00:00:00:00");
-		packet.arp.tip = Ip(argv[i]); // Sender ip
+		packet.arp.tip = Ip(argv[i*2+2]); // Sender ip
 	
 		if(!send_packet(pcap, &packet)) return -1;
 	
@@ -61,7 +66,7 @@ int main(int argc, char* argv[]){
 			const u_char* packet_ans;
 			int res = pcap_next_ex(pcap, &header, &packet_ans);
 			if(res == 0) continue;
-			if(res == PCAP_ERROR || res = PCAP_ERROR_BREAK){
+			if(res == PCAP_ERROR || res == PCAP_ERROR_BREAK){
 				printf("pcap_next_ex return %d(%s)\n", res, pcap_geterr(pcap));
 				break;
 			}
@@ -69,16 +74,19 @@ int main(int argc, char* argv[]){
 			eth_hdr* eth_ans = (eth_hdr*)packet_ans;
 			if(ntohs(eth_ans->type) != eth_hdr::ARP) continue;
 			
-			arp_hdr* arp_ans = (arp_ans*)(packet_ans + sizeof(eth_hdr));
-			if(ntohs(arp_ans->op != arp_hdr::Reply)) continue;
+			arp_hdr* arp_ans = (arp_hdr*)(packet_ans + sizeof(eth_hdr));
+			if(ntohs(arp_ans->op) != arp_hdr::Reply) continue;
 	
-			if(arp_ans->spa == my_ip){
+			if(arp_ans->sip == packet.arp.tip && arp_ans->tip == myIp){
 				packet.eth.dmac = arp_ans->smac;
 				packet.arp.tmac = arp_ans->smac;
 				break;
 			}
 		}
-		packet.arp.sip = Ip(argv[i*2+1]); // Target ip
+		packet.arp.sip = Ip(argv[i*2+3]); // Target ip
+		packet.arp.op = htons(arp_hdr::Reply);
+
+		if(!send_packet(pcap, &packet)) return -1;
 	}
 	
 	pcap_close(pcap);
